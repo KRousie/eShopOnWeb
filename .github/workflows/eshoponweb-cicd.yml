@@ -24,43 +24,57 @@ jobs:
       - name: Clear NuGet cache
         run: dotnet nuget locals all --clear
 
-      - name: Fix System.Text.Json version conflict
+      - name: Update Ardalis packages to compatible versions
         run: |
-          # Add explicit System.Text.Json reference to ApplicationCore to resolve version conflict
-          sed -i '/<\/PropertyGroup>/a \  <ItemGroup>\n    <PackageReference Include="System.Text.Json" Version="8.0.0" \/>\n  <\/ItemGroup>' ./src/ApplicationCore/ApplicationCore.csproj
+          # Update Ardalis packages to versions compatible with .NET 8
+          sed -i 's/Ardalis.Specification" Version="[^"]*"/Ardalis.Specification" Version="6.1.0"/' ./src/ApplicationCore/ApplicationCore.csproj
+          sed -i 's/Ardalis.GuardClauses" Version="[^"]*"/Ardalis.GuardClauses" Version="4.5.0"/' ./src/ApplicationCore/ApplicationCore.csproj
+          sed -i 's/Ardalis.Result" Version="[^"]*"/Ardalis.Result" Version="9.1.0"/' ./src/ApplicationCore/ApplicationCore.csproj
           
-          # Add explicit System.Text.Json reference to Web project
-          sed -i '/<\/PropertyGroup>/a \  <ItemGroup>\n    <PackageReference Include="System.Text.Json" Version="8.0.0" \/>\n  <\/ItemGroup>' ./src/Web/Web.csproj
-
-      - name: Update critical package versions
-        run: |
-          # Update Azure.Identity to a version compatible with .NET 8
+          # Update Web project dependencies
+          sed -i 's/Ardalis.ListStartupServices" Version="[^"]*"/Ardalis.ListStartupServices" Version="1.1.3"/' ./src/Web/Web.csproj
+          
+          # Update System.Text.Json to latest
+          sed -i 's/System.Text.Json" Version="[^"]*"/System.Text.Json" Version="8.0.0"/' ./src/ApplicationCore/ApplicationCore.csproj
+          sed -i 's/System.Text.Json" Version="[^"]*"/System.Text.Json" Version="8.0.0"/' ./src/Web/Web.csproj
+          
+          # Update Azure.Identity
           sed -i 's/Azure.Identity" Version="[^"]*"/Azure.Identity" Version="1.10.0"/' ./src/Web/Web.csproj
           
-          # Update other problematic packages
+          # Update System.IdentityModel.Tokens.Jwt
           sed -i 's/System.IdentityModel.Tokens.Jwt" Version="[^"]*"/System.IdentityModel.Tokens.Jwt" Version="7.0.0"/' ./src/Infrastructure/Infrastructure.csproj
           sed -i 's/System.IdentityModel.Tokens.Jwt" Version="[^"]*"/System.IdentityModel.Tokens.Jwt" Version="7.0.0"/' ./src/Web/Web.csproj
 
-      - name: Restore main projects only
+      - name: Add missing Ardalis package references
         run: |
-          # Restore core projects in dependency order
-          dotnet restore ./src/BlazorShared/BlazorShared.csproj --verbosity quiet
-          dotnet restore ./src/ApplicationCore/ApplicationCore.csproj --verbosity quiet
-          dotnet restore ./src/Infrastructure/Infrastructure.csproj --verbosity quiet
-          dotnet restore ./src/BlazorAdmin/BlazorAdmin.csproj --verbosity quiet
-          dotnet restore ./src/Web/Web.csproj --verbosity quiet
-          echo "Core projects restored successfully"
-
-      - name: Build Web project only
-        run: |
-          # Build dependencies first
-          dotnet build ./src/ApplicationCore/ApplicationCore.csproj --configuration Release --no-restore --verbosity minimal
-          dotnet build ./src/Infrastructure/Infrastructure.csproj --configuration Release --no-restore --verbosity minimal
-          dotnet build ./src/BlazorShared/BlazorShared.csproj --configuration Release --no-restore --verbosity minimal
+          # Ensure ApplicationCore has all required Ardalis packages
+          if ! grep -q "Ardalis.Specification" ./src/ApplicationCore/ApplicationCore.csproj; then
+            sed -i '/<\/ItemGroup>/i \    <PackageReference Include="Ardalis.Specification" Version="6.1.0" />' ./src/ApplicationCore/ApplicationCore.csproj
+          fi
           
-          # Build the main Web project
-          dotnet build ./src/Web/Web.csproj --configuration Release --no-restore --verbosity minimal
-          echo "Web project built successfully"
+          if ! grep -q "Ardalis.GuardClauses" ./src/ApplicationCore/ApplicationCore.csproj; then
+            sed -i '/<\/ItemGroup>/i \    <PackageReference Include="Ardalis.GuardClauses" Version="4.5.0" />' ./src/ApplicationCore/ApplicationCore.csproj
+          fi
+
+      - name: Restore dependencies in correct order
+        run: |
+          # Restore in dependency order to avoid conflicts
+          dotnet restore ./src/BlazorShared/BlazorShared.csproj
+          dotnet restore ./src/ApplicationCore/ApplicationCore.csproj
+          dotnet restore ./src/Infrastructure/Infrastructure.csproj
+          dotnet restore ./src/BlazorAdmin/BlazorAdmin.csproj
+          dotnet restore ./src/Web/Web.csproj
+          echo "All core projects restored successfully"
+
+      - name: Build all projects
+        run: |
+          # Build in dependency order
+          dotnet build ./src/BlazorShared/BlazorShared.csproj --configuration Release --no-restore
+          dotnet build ./src/ApplicationCore/ApplicationCore.csproj --configuration Release --no-restore
+          dotnet build ./src/Infrastructure/Infrastructure.csproj --configuration Release --no-restore
+          dotnet build ./src/BlazorAdmin/BlazorAdmin.csproj --configuration Release --no-restore
+          dotnet build ./src/Web/Web.csproj --configuration Release --no-restore
+          echo "All core projects built successfully"
 
       - name: Publish .NET Web App
         run: |

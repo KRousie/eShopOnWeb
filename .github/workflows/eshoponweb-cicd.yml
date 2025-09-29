@@ -35,15 +35,15 @@ jobs:
 
       - name: Publish .NET Web App
         run: |
-          dotnet publish ./src/Web/Web.csproj -c Release -o ${{ env.DOTNET_ROOT }}/myapp
-          cd ${{ env.DOTNET_ROOT }}/myapp
+          dotnet publish ./src/Web/Web.csproj -c Release -o ./publish
+          cd ./publish
           zip -r ../app.zip .
 
       - name: Upload App artifact
         uses: actions/upload-artifact@v4
         with:
           name: .net-app
-          path: ${{ env.DOTNET_ROOT }}/app.zip
+          path: ./app.zip
 
       - name: Upload Bicep artifact
         uses: actions/upload-artifact@v4
@@ -79,7 +79,7 @@ jobs:
         with:
           subscriptionId: ${{ env.SUBSCRIPTION-ID }}
           resourceGroupName: ${{ env.RESOURCE-GROUP }}
-          template: bicep-template/webapp.bicep
+          template: ./bicep-template/webapp.bicep
           parameters: 'webAppName=${{ env.WEBAPP-NAME }} location=${{ env.LOCATION }}'
           failOnStdErr: false
 

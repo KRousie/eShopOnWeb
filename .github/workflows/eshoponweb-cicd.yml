@@ -20,17 +20,27 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '9.0.x'
+          dotnet-version: |
+            8.0.x
+            9.0.x
           dotnet-quality: 'preview'
 
       - name: Clear NuGet cache
         run: dotnet nuget locals all --clear
 
-      - name: Restore packages
-        run: dotnet restore ./eShopOnWeb.sln
+      - name: Restore packages (skip docker-compose.dcproj)
+        run: |
+          dotnet restore src/Web/Web.csproj
+          dotnet restore src/ApplicationCore/ApplicationCore.csproj
+          dotnet restore src/Infrastructure/Infrastructure.csproj
+          dotnet restore src/PublicApi/PublicApi.csproj
+          dotnet restore tests/UnitTests/UnitTests.csproj
+          dotnet restore tests/FunctionalTests/FunctionalTests.csproj
+          dotnet restore tests/PublicApiIntegrationTests/PublicApiIntegrationTests.csproj
+          dotnet restore tests/IntegrationTests/IntegrationTests.csproj
 
       - name: Build with dotnet
-        run: dotnet build ./eShopOnWeb.sln --configuration Release
+        run: dotnet build ./eShopOnWeb.sln --configuration Release --no-restore
 
       - name: Test with dotnet
         run: dotnet test ./eShopOnWeb.sln --configuration Release --no-build --verbosity normal
@@ -41,13 +51,13 @@ jobs:
           cd ${{env.DOTNET_ROOT}}/myapp
           zip -r ../app.zip .
 
-      - name: Upload artifact for deployment job
+      - name: Upload artifact for deployment job (app)
         uses: actions/upload-artifact@v4
         with:
           name: .net-app
           path: ${{env.DOTNET_ROOT}}/app.zip
 
-      - name: Upload artifact for deployment job
+      - name: Upload artifact for deployment job (bicep)
         uses: actions/upload-artifact@v4
         with:
           name: bicep-template
@@ -59,13 +69,13 @@ jobs:
     environment:
       name: 'Development'
     steps:
-      - name: Download artifact from build job
+      - name: Download artifact from build job (app)
         uses: actions/download-artifact@v4
         with:
           name: .net-app
           path: .net-app
 
-      - name: Download artifact from build job
+      - name: Download artifact from build job (bicep)
         uses: actions/download-artifact@v4
         with:
           name: bicep-template
@@ -76,7 +86,7 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: deploy
+      - name: Deploy infrastructure
         uses: azure/arm-deploy@v2
         with:
           subscriptionId: ${{ env.SUBSCRIPTION-ID }}

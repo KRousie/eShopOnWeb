@@ -1,7 +1,9 @@
-name: eShopOnWeb Build and Deploy
+name: eShopOnWeb Build and Test
 
+#Triggers (uncomment line below to use it)
 on: workflow_dispatch
 
+#Environment variables https://docs.github.com/en/actions/learn-github-actions/environment-variables
 env:
   RESOURCE-GROUP: rg-eshoponweb-westeurope
   LOCATION: westeurope
@@ -9,202 +11,95 @@ env:
   SUBSCRIPTION-ID: 03625f30-897d-40c1-922e-dac326960070
   WEBAPP-NAME: devops-webapp-westeurope-143752838
 
+
 jobs:
+  #Build, test and publish .net web project in repository
   buildandtest:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup .NET 8
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 8.0.x
-
-      - name: Clear NuGet cache
-        run: dotnet nuget locals all --clear
-
-      - name: Create fixed project files
-        run: |
-          # Create a backup of original project files
-          cp ./src/ApplicationCore/ApplicationCore.csproj ./src/ApplicationCore/ApplicationCore.csproj.backup
-          cp ./src/Web/Web.csproj ./src/Web/Web.csproj.backup
-          
-          # Create a fixed ApplicationCore.csproj with explicit package versions
-          cat > ./src/ApplicationCore/ApplicationCore.csproj << 'EOF'
-<Project Sdk="Microsoft.NET.Sdk">
-
-  <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-  </PropertyGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Ardalis.Specification" Version="6.1.0" />
-    <PackageReference Include="Ardalis.GuardClauses" Version="4.5.0" />
-    <PackageReference Include="Ardalis.Result" Version="9.1.0" />
-    <PackageReference Include="System.Text.Json" Version="8.0.0" />
-    <PackageReference Include="System.Security.Claims" Version="4.3.0" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\BlazorShared\BlazorShared.csproj" />
-  </ItemGroup>
-
-</Project>
-EOF
-
-          # Create a fixed Web.csproj with explicit package versions
-          cat > ./src/Web/Web.csproj << 'EOF'
-<Project Sdk="Microsoft.NET.Sdk.Web">
-
-  <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <UserSecretsId>aspnet-Web-53bc9b9d-9d6a-45d4-8429-2a2761773502</UserSecretsId>
-  </PropertyGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Ardalis.ListStartupServices" Version="1.1.3" />
-    <PackageReference Include="AutoMapper.Extensions.Microsoft.DependencyInjection" Version="12.0.1" />
-    <PackageReference Include="Azure.Extensions.AspNetCore.Configuration.Secrets" Version="1.3.1" />
-    <PackageReference Include="Azure.Identity" Version="1.10.4" />
-    <PackageReference Include="MediatR" Version="12.2.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="8.0.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="8.0.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="8.0.0" />
-    <PackageReference Include="Microsoft.Azure.AppConfiguration.AspNetCore" Version="7.1.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="8.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.0" />
-    <PackageReference Include="Microsoft.FeatureManagement.AspNetCore" Version="3.3.0" />
-    <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="8.0.0" />
-    <PackageReference Include="Microsoft.Web.LibraryManager.Build" Version="2.1.175" />
-    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.0.0" />
-    <PackageReference Include="System.Text.Json" Version="8.0.0" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\ApplicationCore\ApplicationCore.csproj" />
-    <ProjectReference Include="..\Infrastructure\Infrastructure.csproj" />
-    <ProjectReference Include="..\BlazorAdmin\BlazorAdmin.csproj" />
-  </ItemGroup>
-
-</Project>
-EOF
-
-          # Update Infrastructure.csproj with explicit package versions
-          cp ./src/Infrastructure/Infrastructure.csproj ./src/Infrastructure/Infrastructure.csproj.backup
-          cat > ./src/Infrastructure/Infrastructure.csproj << 'EOF'
-<Project Sdk="Microsoft.NET.Sdk">
-
-  <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-  </PropertyGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="8.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.0" />
-    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.0.0" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\ApplicationCore\ApplicationCore.csproj" />
-  </ItemGroup>
-
-</Project>
-EOF
-
-      - name: Restore projects with fixed versions
-        run: |
-          dotnet restore ./src/BlazorShared/BlazorShared.csproj
-          dotnet restore ./src/ApplicationCore/ApplicationCore.csproj
-          dotnet restore ./src/Infrastructure/Infrastructure.csproj
-          dotnet restore ./src/BlazorAdmin/BlazorAdmin.csproj
-          dotnet restore ./src/Web/Web.csproj
-          echo "All projects restored successfully"
-
-      - name: Build projects
-        run: |
-          dotnet build ./src/BlazorShared/BlazorShared.csproj --configuration Release --no-restore
-          dotnet build ./src/ApplicationCore/ApplicationCore.csproj --configuration Release --no-restore
-          dotnet build ./src/Infrastructure/Infrastructure.csproj --configuration Release --no-restore
-          dotnet build ./src/BlazorAdmin/BlazorAdmin.csproj --configuration Release --no-restore
-          dotnet build ./src/Web/Web.csproj --configuration Release --no-restore
-          echo "All projects built successfully"
-
-      - name: Publish .NET Web App
-        run: |
-          dotnet publish ./src/Web/Web.csproj -c Release -o ./publish --no-build
-          cd ./publish
-          zip -r ../app.zip .
-          echo "Application published successfully"
-
-      - name: Upload App artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: .net-app
-          path: ./app.zip
-
-      - name: Upload Bicep artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: bicep-template
-          path: ${{ env.TEMPLATE-FILE }}
-
-      - name: Restore original project files
-        if: always()
-        run: |
-          # Restore original project files
-          mv ./src/ApplicationCore/ApplicationCore.csproj.backup ./src/ApplicationCore/ApplicationCore.csproj 2>/dev/null || true
-          mv ./src/Web/Web.csproj.backup ./src/Web/Web.csproj 2>/dev/null || true
-          mv ./src/Infrastructure/Infrastructure.csproj.backup ./src/Infrastructure/Infrastructure.csproj 2>/dev/null || true
-
+    #checkout the repository
+    - uses: actions/checkout@v4
+    #prepare runner for desired .net version SDK
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+        dotnet-quality: 'preview'
+    #Build/Test/Publish the .net project
+    - name: Build with dotnet
+      run: dotnet build ./eShopOnWeb.sln --configuration Release
+    - name: Test with dotnet
+      run: dotnet test ./eShopOnWeb.sln --configuration Release
+    - name: dotnet publish
+      run: |
+        dotnet publish ./src/Web/Web.csproj -c Release -o ${{env.DOTNET_ROOT}}/myapp
+        cd ${{env.DOTNET_ROOT}}/myapp
+        zip -r ../app.zip .
+    # upload the published website code artifacts
+    - name: Upload artifact for deployment job
+      uses: actions/upload-artifact@v4
+      with:
+        name: .net-app
+        path: ${{env.DOTNET_ROOT}}/app.zip
+        
+    # upload the bicep template as artifacts for next job
+    - name: Upload artifact for deployment job
+      uses: actions/upload-artifact@v4
+      with:
+        name: bicep-template
+        path: ${{ env.TEMPLATE-FILE }}
+        
+  # Use Bicep to deploy infrastructure + Publish webapp 
   deploy:
     runs-on: ubuntu-latest
     needs: buildandtest
     environment:
-      name: Development
+      name: 'Development'
     steps:
-      - name: Download App artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: .net-app
-          path: .net-app
+    
+    #Download the publish files created in previous job
+    - name: Download artifact from build job
+      uses: actions/download-artifact@v4
+      with:
+        name: .net-app
+        path: .net-app
+  
+    #Download the bicep templates from previous job
+    - name: Download artifact from build job
+      uses: actions/download-artifact@v4
+      with:
+        name: bicep-template
+        path: bicep-template
+        
+   #Login in your azure subscription using a service principal (credentials stored as GitHub Secret in repo)
+    - name: Azure Login
+      uses: azure/login@v2
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+           
+    # Deploy Azure WebApp using Bicep file
+    - name: deploy
+      uses: azure/arm-deploy@v2
+      with:
+        subscriptionId: ${{ env.SUBSCRIPTION-ID }}
+        resourceGroupName: ${{ env.RESOURCE-GROUP }}
+        template: bicep-template/webapp.bicep
+        parameters: 'webAppName=${{ env.WEBAPP-NAME }} location=${{ env.LOCATION }}'
+        failOnStdErr: false   
+    
+    # Publish website to Azure App Service (WebApp)
+    # Step disabled due to issue where the site sometimes can't be found: https://github.com/microsoft/pipelines-appservice-lib/issues/56. Instead deploy using CLI
+    - name: Publish Website to WebApp
+      if: false #Disable step due to comment above
+      uses: Azure/webapps-deploy@v3
+      with:
+        type: ZIP
+        app-name: ${{ env.WEBAPP-NAME  }}
+        package: .net-app/app.zip
 
-      - name: Download Bicep artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: bicep-template
-          path: bicep-template
-
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Deploy Infrastructure (Bicep)
-        uses: azure/arm-deploy@v2
-        with:
-          subscriptionId: ${{ env.SUBSCRIPTION-ID }}
-          resourceGroupName: ${{ env.RESOURCE-GROUP }}
-          template: ./bicep-template/webapp.bicep
-          parameters: 'webAppName=${{ env.WEBAPP-NAME }} location=${{ env.LOCATION }}'
-          failOnStdErr: false
-
-      - name: Deploy WebApp (ZIP)
-        uses: Azure/cli@v2
-        with:
-          inlineScript: |
-            az webapp deploy \
-              --name ${{ env.WEBAPP-NAME }} \
-              --resource-group ${{ env.RESOURCE-GROUP }} \
-              --src-path .net-app/app.zip \
-              --type zip
+    # Publish website to Azure App Service using CLI (WebApp)
+    - name: Publish Website to WebApp
+      uses: Azure/cli@v2
+      with:
+        inlineScript: |
+             az webapp deploy --name ${{ env.WEBAPP-NAME }} --resource-group ${{ env.RESOURCE-GROUP }} --src-path .net-app/app.zip --type zip

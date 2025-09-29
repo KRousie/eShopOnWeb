@@ -1,9 +1,7 @@
-name: eShopOnWeb Build and Test
+name: eShopOnWeb Build and Deploy
 
-#Triggers
 on: workflow_dispatch
 
-#Environment variables
 env:
   RESOURCE-GROUP: rg-eshoponweb-westeurope
   LOCATION: westeurope
@@ -28,36 +26,28 @@ jobs:
       - name: Clear NuGet cache
         run: dotnet nuget locals all --clear
 
-      - name: Restore packages (skip docker-compose.dcproj)
-        run: |
-          dotnet restore src/Web/Web.csproj
-          dotnet restore src/ApplicationCore/ApplicationCore.csproj
-          dotnet restore src/Infrastructure/Infrastructure.csproj
-          dotnet restore src/PublicApi/PublicApi.csproj
-          dotnet restore tests/UnitTests/UnitTests.csproj
-          dotnet restore tests/FunctionalTests/FunctionalTests.csproj
-          dotnet restore tests/PublicApiIntegrationTests/PublicApiIntegrationTests.csproj
-          dotnet restore tests/IntegrationTests/IntegrationTests.csproj
+      - name: Restore packages
+        run: dotnet restore ./eShopOnWeb.sln
 
-      - name: Build with dotnet
+      - name: Build solution
         run: dotnet build ./eShopOnWeb.sln --configuration Release --no-restore
 
-      - name: Test with dotnet
+      - name: Run tests
         run: dotnet test ./eShopOnWeb.sln --configuration Release --no-build --verbosity normal
 
-      - name: dotnet publish
+      - name: Publish .NET App
         run: |
-          dotnet publish ./src/Web/Web.csproj -c Release -o ${{env.DOTNET_ROOT}}/myapp
-          cd ${{env.DOTNET_ROOT}}/myapp
+          dotnet publish ./src/Web/Web.csproj -c Release -o ${{ env.DOTNET_ROOT }}/myapp
+          cd ${{ env.DOTNET_ROOT }}/myapp
           zip -r ../app.zip .
 
-      - name: Upload artifact for deployment job (app)
+      - name: Upload artifact (App)
         uses: actions/upload-artifact@v4
         with:
           name: .net-app
-          path: ${{env.DOTNET_ROOT}}/app.zip
+          path: ${{ env.DOTNET_ROOT }}/app.zip
 
-      - name: Upload artifact for deployment job (bicep)
+      - name: Upload artifact (Bicep)
         uses: actions/upload-artifact@v4
         with:
           name: bicep-template
@@ -68,14 +58,15 @@ jobs:
     needs: buildandtest
     environment:
       name: 'Development'
+
     steps:
-      - name: Download artifact from build job (app)
+      - name: Download App artifact
         uses: actions/download-artifact@v4
         with:
           name: .net-app
           path: .net-app
 
-      - name: Download artifact from build job (bicep)
+      - name: Download Bicep artifact
         uses: actions/download-artifact@v4
         with:
           name: bicep-template
@@ -86,7 +77,7 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Deploy infrastructure
+      - name: Deploy Infrastructure (Bicep)
         uses: azure/arm-deploy@v2
         with:
           subscriptionId: ${{ env.SUBSCRIPTION-ID }}
@@ -95,7 +86,7 @@ jobs:
           parameters: 'webAppName=${{ env.WEBAPP-NAME }} location=${{ env.LOCATION }}'
           failOnStdErr: false
 
-      - name: Publish Website to WebApp (CLI)
+      - name: Deploy WebApp (CLI ZIP)
         uses: Azure/cli@v2
         with:
           inlineScript: |

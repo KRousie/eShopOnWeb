@@ -24,6 +24,17 @@ jobs:
       - name: Clear NuGet cache
         run: dotnet nuget locals all --clear
 
+      - name: Validate project frameworks
+        run: |
+          # Check all project target frameworks
+          for proj in $(find . -name "*.csproj"); do
+            echo "Checking: $proj"
+            if ! grep -q "TargetFramework" "$proj"; then
+              echo "ERROR: No TargetFramework found in $proj"
+              exit 1
+            fi
+          done
+
       - name: Restore solution
         run: dotnet restore ./eShopOnWeb.sln
 

@@ -1,21 +1,125 @@
-<Project Sdk="Microsoft.NET.Sdk">
+name: eShopOnWeb Build and Deploy
 
-  <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-  </PropertyGroup>
+on:
+  workflow_dispatch:
 
-  <ItemGroup>
-    <PackageReference Include="Ardalis.Specification" Version="6.1.0" />
-    <PackageReference Include="Ardalis.GuardClauses" Version="4.5.0" />
-    <PackageReference Include="Ardalis.Result" Version="9.1.0" />
-    <PackageReference Include="System.Text.Json" Version="8.0.0" />
-    <PackageReference Include="System.Security.Claims" Version="4.3.0" />
-  </ItemGroup>
+env:
+  RESOURCE_GROUP: rg-eshoponweb-westeurope
+  LOCATION: westeurope
+  TEMPLATE_FILE: infra/webapp.bicep
+  SUBSCRIPTION_ID: 03625f30-897d-40c1-922e-dac326960070
+  WEBAPP_NAME: devops-webapp-westeurope-143752838
 
-  <ItemGroup>
-    <ProjectReference Include="..\BlazorShared\BlazorShared.csproj" />
-  </ItemGroup>
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-</Project>
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Clear NuGet cache
+        run: dotnet nuget locals all --clear
+
+      - name: Install missing Ardalis packages
+        run: |
+          # Add the missing Ardalis packages to ApplicationCore
+          cd src/ApplicationCore
+          
+          # Install Ardalis.Specification (provides Specification<> and repository interfaces)
+          dotnet add package Ardalis.Specification --version 6.1.0
+          
+          # Install Ardalis.GuardClauses (provides IGuardClause)
+          dotnet add package Ardalis.GuardClauses --version 4.5.0
+          
+          # Install Ardalis.Result
+          dotnet add package Ardalis.Result --version 9.1.0
+          
+          # Install System.Text.Json to resolve version conflicts
+          dotnet add package System.Text.Json --version 8.0.0
+          
+          cd ../..
+
+      - name: Update Web project dependencies
+        run: |
+          cd src/Web
+          
+          # Update Azure.Identity to resolve System.Text.Json conflict
+          dotnet add package Azure.Identity --version 1.10.4
+          
+          # Update other problematic packages
+          dotnet add package System.IdentityModel.Tokens.Jwt --version 7.0.0
+          dotnet add package Microsoft.EntityFrameworkCore.SqlServer --version 8.0.0
+          dotnet add package Microsoft.AspNetCore.Identity.EntityFrameworkCore --version 8.0.0
+          
+          cd ../..
+
+      - name: Restore projects
+        run: |
+          # Restore in dependency order
+          dotnet restore src/BlazorShared/BlazorShared.csproj
+          dotnet restore src/ApplicationCore/ApplicationCore.csproj
+          dotnet restore src/Infrastructure/Infrastructure.csproj
+          dotnet restore src/BlazorAdmin/BlazorAdmin.csproj
+          dotnet restore src/Web/Web.csproj
+
+      - name: Build projects
+        run: |
+          # Build in dependency order
+          dotnet build src/BlazorShared/BlazorShared.csproj --configuration Release --no-restore
+          dotnet build src/ApplicationCore/ApplicationCore.csproj --configuration Release --no-restore
+          dotnet build src/Infrastructure/Infrastructure.csproj --configuration Release --no-restore
+          dotnet build src/BlazorAdmin/BlazorAdmin.csproj --configuration Release --no-restore
+          dotnet build src/Web/Web.csproj --configuration Release --no-restore
+
+      - name: Publish Web App
+        run: |
+          dotnet publish src/Web/Web.csproj -c Release -o ./publish_output --no-build
+          cd ./publish_output
+          zip -r ../app.zip .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: webapp
+          path: app.zip
+
+      - name: Upload Bicep template
+        uses: actions/upload-artifact@v4
+        with:
+          name: bicep
+          path: ${{ env.TEMPLATE_FILE }}
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    environment: production
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Login to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy Infrastructure
+        uses: azure/arm-deploy@v2
+        with:
+          subscriptionId: ${{ env.SUBSCRIPTION_ID }}
+          resourceGroupName: ${{ env.RESOURCE_GROUP }}
+          template: ./artifacts/bicep/webapp.bicep
+          parameters: 'webAppName=${{ env.WEBAPP_NAME }} location=${{ env.LOCATION }}'
+
+      - name: Deploy to Web App
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ env.WEBAPP_NAME }}
+          resource-group: ${{ env.RESOURCE_GROUP }}
+          package: ./artifacts/webapp/app.zip

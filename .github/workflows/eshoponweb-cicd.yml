@@ -13,17 +13,18 @@ jobs:
   buildandtest:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Setup .NET
+      - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
-            
+
       - name: Clear NuGet cache
         run: dotnet nuget locals all --clear
 
-      - name: Restore packages
+      - name: Restore solution
         run: dotnet restore ./eShopOnWeb.sln
 
       - name: Build solution
@@ -32,19 +33,19 @@ jobs:
       - name: Run tests
         run: dotnet test ./eShopOnWeb.sln --configuration Release --no-build --verbosity normal
 
-      - name: Publish .NET App
+      - name: Publish .NET Web App
         run: |
           dotnet publish ./src/Web/Web.csproj -c Release -o ${{ env.DOTNET_ROOT }}/myapp
           cd ${{ env.DOTNET_ROOT }}/myapp
           zip -r ../app.zip .
 
-      - name: Upload artifact (App)
+      - name: Upload App artifact
         uses: actions/upload-artifact@v4
         with:
           name: .net-app
           path: ${{ env.DOTNET_ROOT }}/app.zip
 
-      - name: Upload artifact (Bicep)
+      - name: Upload Bicep artifact
         uses: actions/upload-artifact@v4
         with:
           name: bicep-template
@@ -54,8 +55,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: buildandtest
     environment:
-      name: 'Development'
-
+      name: Development
     steps:
       - name: Download App artifact
         uses: actions/download-artifact@v4
@@ -83,8 +83,12 @@ jobs:
           parameters: 'webAppName=${{ env.WEBAPP-NAME }} location=${{ env.LOCATION }}'
           failOnStdErr: false
 
-      - name: Deploy WebApp (CLI ZIP)
+      - name: Deploy WebApp (ZIP)
         uses: Azure/cli@v2
         with:
           inlineScript: |
-            az webapp deploy --name ${{ env.WEBAPP-NAME }} --resource-group ${{ env.RESOURCE-GROUP }} --src-path .net-app/app.zip --type zip
+            az webapp deploy \
+              --name ${{ env.WEBAPP-NAME }} \
+              --resource-group ${{ env.RESOURCE-GROUP }} \
+              --src-path .net-app/app.zip \
+              --type zip

@@ -25,6 +25,10 @@ jobs:
       with:
         dotnet-version: '8.0.x'
         # dotnet-quality: 'preview'
+
+    - name: Remove Central Package Management
+      run: rm Directory.Packages.props
+      
     #Build/Test/Publish the .net project
     - name: Build with dotnet
       run: dotnet build ./eShopOnWeb.sln --configuration Release

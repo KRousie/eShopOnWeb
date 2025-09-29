@@ -24,57 +24,121 @@ jobs:
       - name: Clear NuGet cache
         run: dotnet nuget locals all --clear
 
-      - name: Update Ardalis packages to compatible versions
+      - name: Create fixed project files
         run: |
-          # Update Ardalis packages to versions compatible with .NET 8
-          sed -i 's/Ardalis.Specification" Version="[^"]*"/Ardalis.Specification" Version="6.1.0"/' ./src/ApplicationCore/ApplicationCore.csproj
-          sed -i 's/Ardalis.GuardClauses" Version="[^"]*"/Ardalis.GuardClauses" Version="4.5.0"/' ./src/ApplicationCore/ApplicationCore.csproj
-          sed -i 's/Ardalis.Result" Version="[^"]*"/Ardalis.Result" Version="9.1.0"/' ./src/ApplicationCore/ApplicationCore.csproj
+          # Create a backup of original project files
+          cp ./src/ApplicationCore/ApplicationCore.csproj ./src/ApplicationCore/ApplicationCore.csproj.backup
+          cp ./src/Web/Web.csproj ./src/Web/Web.csproj.backup
           
-          # Update Web project dependencies
-          sed -i 's/Ardalis.ListStartupServices" Version="[^"]*"/Ardalis.ListStartupServices" Version="1.1.3"/' ./src/Web/Web.csproj
-          
-          # Update System.Text.Json to latest
-          sed -i 's/System.Text.Json" Version="[^"]*"/System.Text.Json" Version="8.0.0"/' ./src/ApplicationCore/ApplicationCore.csproj
-          sed -i 's/System.Text.Json" Version="[^"]*"/System.Text.Json" Version="8.0.0"/' ./src/Web/Web.csproj
-          
-          # Update Azure.Identity
-          sed -i 's/Azure.Identity" Version="[^"]*"/Azure.Identity" Version="1.10.0"/' ./src/Web/Web.csproj
-          
-          # Update System.IdentityModel.Tokens.Jwt
-          sed -i 's/System.IdentityModel.Tokens.Jwt" Version="[^"]*"/System.IdentityModel.Tokens.Jwt" Version="7.0.0"/' ./src/Infrastructure/Infrastructure.csproj
-          sed -i 's/System.IdentityModel.Tokens.Jwt" Version="[^"]*"/System.IdentityModel.Tokens.Jwt" Version="7.0.0"/' ./src/Web/Web.csproj
+          # Create a fixed ApplicationCore.csproj with explicit package versions
+          cat > ./src/ApplicationCore/ApplicationCore.csproj << 'EOF'
+<Project Sdk="Microsoft.NET.Sdk">
 
-      - name: Add missing Ardalis package references
-        run: |
-          # Ensure ApplicationCore has all required Ardalis packages
-          if ! grep -q "Ardalis.Specification" ./src/ApplicationCore/ApplicationCore.csproj; then
-            sed -i '/<\/ItemGroup>/i \    <PackageReference Include="Ardalis.Specification" Version="6.1.0" />' ./src/ApplicationCore/ApplicationCore.csproj
-          fi
-          
-          if ! grep -q "Ardalis.GuardClauses" ./src/ApplicationCore/ApplicationCore.csproj; then
-            sed -i '/<\/ItemGroup>/i \    <PackageReference Include="Ardalis.GuardClauses" Version="4.5.0" />' ./src/ApplicationCore/ApplicationCore.csproj
-          fi
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
 
-      - name: Restore dependencies in correct order
+  <ItemGroup>
+    <PackageReference Include="Ardalis.Specification" Version="6.1.0" />
+    <PackageReference Include="Ardalis.GuardClauses" Version="4.5.0" />
+    <PackageReference Include="Ardalis.Result" Version="9.1.0" />
+    <PackageReference Include="System.Text.Json" Version="8.0.0" />
+    <PackageReference Include="System.Security.Claims" Version="4.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BlazorShared\BlazorShared.csproj" />
+  </ItemGroup>
+
+</Project>
+EOF
+
+          # Create a fixed Web.csproj with explicit package versions
+          cat > ./src/Web/Web.csproj << 'EOF'
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>aspnet-Web-53bc9b9d-9d6a-45d4-8429-2a2761773502</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Ardalis.ListStartupServices" Version="1.1.3" />
+    <PackageReference Include="AutoMapper.Extensions.Microsoft.DependencyInjection" Version="12.0.1" />
+    <PackageReference Include="Azure.Extensions.AspNetCore.Configuration.Secrets" Version="1.3.1" />
+    <PackageReference Include="Azure.Identity" Version="1.10.4" />
+    <PackageReference Include="MediatR" Version="12.2.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="8.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="8.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Azure.AppConfiguration.AspNetCore" Version="7.1.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="8.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.0" />
+    <PackageReference Include="Microsoft.FeatureManagement.AspNetCore" Version="3.3.0" />
+    <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Web.LibraryManager.Build" Version="2.1.175" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.0.0" />
+    <PackageReference Include="System.Text.Json" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ApplicationCore\ApplicationCore.csproj" />
+    <ProjectReference Include="..\Infrastructure\Infrastructure.csproj" />
+    <ProjectReference Include="..\BlazorAdmin\BlazorAdmin.csproj" />
+  </ItemGroup>
+
+</Project>
+EOF
+
+          # Update Infrastructure.csproj with explicit package versions
+          cp ./src/Infrastructure/Infrastructure.csproj ./src/Infrastructure/Infrastructure.csproj.backup
+          cat > ./src/Infrastructure/Infrastructure.csproj << 'EOF'
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="8.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ApplicationCore\ApplicationCore.csproj" />
+  </ItemGroup>
+
+</Project>
+EOF
+
+      - name: Restore projects with fixed versions
         run: |
-          # Restore in dependency order to avoid conflicts
           dotnet restore ./src/BlazorShared/BlazorShared.csproj
           dotnet restore ./src/ApplicationCore/ApplicationCore.csproj
           dotnet restore ./src/Infrastructure/Infrastructure.csproj
           dotnet restore ./src/BlazorAdmin/BlazorAdmin.csproj
           dotnet restore ./src/Web/Web.csproj
-          echo "All core projects restored successfully"
+          echo "All projects restored successfully"
 
-      - name: Build all projects
+      - name: Build projects
         run: |
-          # Build in dependency order
           dotnet build ./src/BlazorShared/BlazorShared.csproj --configuration Release --no-restore
           dotnet build ./src/ApplicationCore/ApplicationCore.csproj --configuration Release --no-restore
           dotnet build ./src/Infrastructure/Infrastructure.csproj --configuration Release --no-restore
           dotnet build ./src/BlazorAdmin/BlazorAdmin.csproj --configuration Release --no-restore
           dotnet build ./src/Web/Web.csproj --configuration Release --no-restore
-          echo "All core projects built successfully"
+          echo "All projects built successfully"
 
       - name: Publish .NET Web App
         run: |
@@ -94,6 +158,14 @@ jobs:
         with:
           name: bicep-template
           path: ${{ env.TEMPLATE-FILE }}
+
+      - name: Restore original project files
+        if: always()
+        run: |
+          # Restore original project files
+          mv ./src/ApplicationCore/ApplicationCore.csproj.backup ./src/ApplicationCore/ApplicationCore.csproj 2>/dev/null || true
+          mv ./src/Web/Web.csproj.backup ./src/Web/Web.csproj 2>/dev/null || true
+          mv ./src/Infrastructure/Infrastructure.csproj.backup ./src/Infrastructure/Infrastructure.csproj 2>/dev/null || true
 
   deploy:
     runs-on: ubuntu-latest

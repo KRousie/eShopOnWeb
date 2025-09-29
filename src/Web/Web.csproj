@@ -15,7 +15,8 @@
 
   <ItemGroup>
     <PackageReference Include="Ardalis.ListStartupServices" />
-    <PackageReference Include="Ardalis.Specification" />
+    <PackageReference Include="Ardalis.GuardClauses" Version="4.0.1" />
+    <PackageReference Include="Ardalis.Specification" Version="6.1.0" />
     <PackageReference Include="AutoMapper.Extensions.Microsoft.DependencyInjection" />
     <PackageReference Include="Azure.Extensions.AspNetCore.Configuration.Secrets" />
     <PackageReference Include="Azure.Identity" />
